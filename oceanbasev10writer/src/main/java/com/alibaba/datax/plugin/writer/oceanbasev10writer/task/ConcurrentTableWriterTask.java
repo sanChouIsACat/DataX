@@ -296,29 +296,11 @@ public class ConcurrentTableWriterTask extends CommonRdbmsWriter.Task {
 	private void addLeftRecords() {
 		for (List<Record> groupValues : groupInsertValues.values()) {
 			if (groupValues.size() > 0 ) {
-				int retry = 0;
-				while (true) {
-					try {
-						concurrentWriter.addBatchRecords(groupValues);
-						break;
-					} catch (InterruptedException e) {
-						retry++;
-						LOG.info("Concurrent table writer is interrupted, retry {}", retry);
-					}
-				}
+				addRecordsToWriteQueue(groupValues);
 			}
 		}
 		if (unknownPartRecords.size() > 0) {
-			int retry = 0;
-			while (true) {
-				try {
-					concurrentWriter.addBatchRecords(unknownPartRecords);
-					break;
-				} catch (InterruptedException e) {
-					retry++;
-					LOG.info("Concurrent table writer is interrupted, retry {}", retry);
-				}
-			}
+			addRecordsToWriteQueue(unknownPartRecords);
 		}
 	}
 	
@@ -344,18 +326,7 @@ public class ConcurrentTableWriterTask extends CommonRdbmsWriter.Task {
 			groupValues.add(record);
 			if (groupValues.size() >= batchSize) {
 				int i = 0;
-				while (true) {
-					if (i > 0) {
-						LOG.info("retry add batch record the {} times", i);
-					}
-					try {
-						concurrentWriter.addBatchRecords(groupValues);
-						printEveryTime();
-						break;
-					} catch (InterruptedException e) {
-						LOG.info("Concurrent table writer is interrupted");
-					}
-				}
+				addRecordsToWriteQueue(groupValues);
 				groupValues = new ArrayList<Record>(batchSize);
 				groupInsertValues.put(partId, groupValues);
 			}
@@ -363,24 +334,28 @@ public class ConcurrentTableWriterTask extends CommonRdbmsWriter.Task {
 			LOG.debug("add unknown part record {}", record);
 
 			unknownPartRecords.add(record);
-			int i = 0;
+
 			if (unknownPartRecords.size() > batchSize) {
-				while (true) {
-					if (i > 0) {
-						LOG.info("retry add batch record the {} times", i);
-					}
-					try {
-						concurrentWriter.addBatchRecords(unknownPartRecords);
-						break;
-					} catch (InterruptedException e) {
-						LOG.info("Concurrent table writer is interrupted");
-					}
-				}
+				addRecordsToWriteQueue(unknownPartRecords);
 			}
 
 		}
 	}
 
+	private void addRecordsToWriteQueue(List<Record> records) {
+		int i = 0;
+		while (true) {
+			if (i > 0) {
+				LOG.info("retry add batch record the {} times", i);
+			}
+			try {
+				concurrentWriter.addBatchRecords(records);
+				break;
+			} catch (InterruptedException e) {
+				LOG.info("Concurrent table writer is interrupted");
+			}
+		}
+	}
 	private void checkMemStore() {
 		Connection checkConn = checkConnHolder.reconnect();
 		long now = System.currentTimeMillis();
