@@ -352,6 +352,7 @@ public class ConcurrentTableWriterTask extends CommonRdbmsWriter.Task {
 				concurrentWriter.addBatchRecords(records);
 				break;
 			} catch (InterruptedException e) {
+				i++;
 				LOG.info("Concurrent table writer is interrupted");
 			}
 		}
